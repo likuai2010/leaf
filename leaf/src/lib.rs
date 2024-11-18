@@ -11,6 +11,12 @@ use tokio::sync::mpsc;
 use tokio::sync::RwLock;
 use tracing::{error, info, trace, warn};
 
+
+#[cfg(feature = "os-ohos")]
+use ohos_hilog_binding::hilog_debug;
+#[cfg(feature = "os-ohos")]
+use ohos_hilog_binding::LogOptions;
+
 #[cfg(feature = "auto-reload")]
 use notify::{
     event, Error as NotifyError, RecommendedWatcher, RecursiveMode, Result as NotifyResult, Watcher,
@@ -35,7 +41,7 @@ pub mod proxy;
 pub mod session;
 pub mod util;
 
-#[cfg(any(target_os = "ios", target_os = "macos", target_os = "android"))]
+#[cfg(any(target_os = "ios", target_os = "macos", target_os = "android", feature = "os-ohos"))]
 pub mod mobile;
 
 #[cfg(all(feature = "inbound-tun", any(target_os = "macos", target_os = "linux")))]
@@ -366,6 +372,8 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
     #[cfg(debug_assertions)]
     println!("start with options:\n{:#?}", opts);
 
+    trace!("start with options:\n{:#?}", opts);
+
     let (reload_tx, mut reload_rx) = mpsc::channel(1);
     let (shutdown_tx, mut shutdown_rx) = mpsc::channel(1);
 
@@ -374,12 +382,13 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         _ => None,
     };
 
+   
     let mut config = match opts.config {
         Config::File(p) => config::from_file(&p).map_err(Error::Config)?,
         Config::Str(s) => config::from_string(&s).map_err(Error::Config)?,
         Config::Internal(c) => c,
     };
-
+    info!("start with config {:#?} {} {}", config.log, config.inbounds.len(), config.outbounds.len());
     app::logger::setup_logger(&config.log)?;
 
     let rt = new_runtime(&opts.runtime_opt)?;
@@ -412,13 +421,13 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
 
     let dispatcher_weak = Arc::downgrade(&dispatcher);
     let dns_client_cloned = dns_client.clone();
+ 
     rt.block_on(async move {
         dns_client_cloned
             .write()
             .await
             .replace_dispatcher(dispatcher_weak);
     });
-
     let nat_manager = Arc::new(NatManager::new(dispatcher.clone()));
     let inbound_manager =
         InboundManager::new(&config.inbounds, dispatcher, nat_manager).map_err(Error::Config)?;
@@ -549,7 +558,7 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         .lock()
         .map_err(|_| Error::RuntimeManager)?
         .insert(rt_id, runtime_manager);
-
+    
     trace!("added runtime {}", &rt_id);
 
     rt.block_on(futures::future::select_all(tasks));
@@ -565,7 +574,6 @@ pub fn start(rt_id: RuntimeId, opts: StartOptions) -> Result<(), Error> {
         .remove(&rt_id);
 
     rt.shutdown_background();
-
     trace!("removed runtime {}", &rt_id);
 
     Ok(())

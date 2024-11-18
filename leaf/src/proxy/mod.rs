@@ -24,7 +24,11 @@ use {
     std::os::unix::io::RawFd, tokio::io::AsyncReadExt, tokio::io::AsyncWriteExt,
     tokio::net::UnixStream, tracing::trace,
 };
-
+#[cfg(feature = "os-ohos")]
+use {
+    std::os::unix::io::RawFd, tokio::io::AsyncReadExt, tokio::io::AsyncWriteExt,
+    tokio::net::UnixStream, tracing::trace,
+};
 use crate::{
     app::SyncDnsClient,
     common::resolver::Resolver,
@@ -157,6 +161,32 @@ async fn protect_socket(fd: RawFd) -> io::Result<()> {
     }
     Ok(())
 }
+
+#[cfg(feature = "os-ohos")]
+async fn protect_socket(fd: RawFd) -> io::Result<()> {
+    if let Some(addr) = &*option::SOCKET_PROTECT_SERVER {
+        let mut stream = TcpStream::connect(addr).await?;
+        stream.write_i32(fd as i32).await?;
+        if stream.read_i32().await? != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("failed to protect outbound socket {}", fd),
+            ));
+        }
+        return Ok(());
+    }
+    if !option::SOCKET_PROTECT_PATH.is_empty() {
+        let mut stream = UnixStream::connect(&*option::SOCKET_PROTECT_PATH).await?;
+        stream.write_i32(fd as i32).await?;
+        if stream.read_i32().await? != 0 {
+            return Ok(())
+        }
+        return Ok(());
+    }
+    Ok(())
+}
+
+
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 trait BindSocket: AsFd {
@@ -307,8 +337,20 @@ pub async fn new_udp_socket(indicator: &SocketAddr) -> io::Result<UdpSocket> {
 
     bind_socket(&socket, indicator).await?;
 
-    #[cfg(target_os = "android")]
-    protect_socket(socket.as_raw_fd()).await?;
+    #[cfg(any(target_os = "android", feature = "os-ohos"))]
+    match protect_socket(socket.as_raw_fd()).await {
+        Ok(_) => {
+            debug!(
+                "Socket protected successfully",
+            );
+        }
+        Err(e) => {
+            debug!(
+                "protect_socket fail  {}",
+                e
+            );
+        }
+    }
 
     UdpSocket::from_std(socket.into())
 }
@@ -350,8 +392,20 @@ async fn tcp_dial_task(dial_addr: SocketAddr) -> io::Result<DialResult> {
 
     bind_socket(&socket, &dial_addr).await?;
 
-    #[cfg(target_os = "android")]
-    protect_socket(socket.as_raw_fd()).await?;
+    #[cfg(any(target_os = "android", feature = "os-ohos"))]
+    match protect_socket(socket.as_raw_fd()).await {
+        Ok(_) => {
+            debug!(
+                "Socket protected successfully",
+            );
+        }
+        Err(e) => {
+            debug!(
+                "protect_socket fail  {}",
+                e
+            );
+        }
+    }
 
     debug!("tcp dialing {}", &dial_addr);
     let start = tokio::time::Instant::now();

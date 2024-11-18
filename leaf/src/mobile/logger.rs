@@ -11,6 +11,11 @@ use super::bindings::{asl_log, ASL_LEVEL_NOTICE};
 #[cfg(target_os = "android")]
 use super::bindings::{__android_log_print, android_LogPriority_ANDROID_LOG_VERBOSE};
 
+#[cfg(feature = "os-ohos")]
+use ohos_hilog_binding::hilog_debug;
+#[cfg(feature = "os-ohos")]
+use ohos_hilog_binding::LogOptions;
+
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 fn log_out(data: &[u8]) {
     unsafe {
@@ -42,6 +47,27 @@ fn log_out(data: &[u8]) {
             android_LogPriority_ANDROID_LOG_VERBOSE as std::os::raw::c_int,
             tag.as_c_str().as_ptr(),
             s.as_c_str().as_ptr(),
+        );
+    }
+}
+
+#[cfg(feature = "os-ohos")]
+fn log_out(data: &[u8]) {
+    if data.is_empty() {
+        return
+    }
+    unsafe {
+        let s = match ffi::CString::new(data) {
+            Ok(s) => s.into_string(),
+            Err(_) => return,
+        };
+        let tag = ffi::CString::new("rs-leaf").unwrap().into_string();
+        hilog_debug!(
+            s.unwrap(),
+            LogOptions {
+              tag: Some(tag.unwrap().as_str()),
+              domain: None
+          }
         );
     }
 }

@@ -21,3 +21,4 @@ default = [
 leaf = { path = "../leaf", default-features = false, optional = true }
 tokio = { version = "1", features = ["rt"] }
 argh = "0.1"
+ohos-hilog-binding = "0.0.3"

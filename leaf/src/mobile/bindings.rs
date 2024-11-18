@@ -5,4 +5,5 @@
 #![allow(dead_code)]
 #![allow(clippy::all)]
 
+#[cfg(any(target_os = "ios", target_os = "android"))]
 include!(concat!(env!("OUT_DIR"), "/mobile_bindings.rs"));

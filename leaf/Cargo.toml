@@ -13,7 +13,7 @@ path = "src/lib.rs"
 default = [
     "default-ring"
 ]
-
+os-ohos =[]
 default-ring = [
     "all-configs",
     "all-endpoints",
@@ -22,6 +22,7 @@ default-ring = [
     "rustls-tls-ring",
     "api",
     "stat",
+    "os-ohos"
 ]
 
 default-aws-lc = [
@@ -147,6 +148,8 @@ rand = "0.8"
 socket2 = "0.5"
 async-recursion = "1.1"
 
+ohos-hilog-binding = "0.0.3"
+
 # DNS
 trust-dns-proto = { version = "0.23", default-features = false }
 lru = "0.12"
@@ -251,7 +254,7 @@ jni = "0.21"
 
 # TUN
 [target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux"))'.dependencies]
-tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "fork", features = ["async"], optional = true }
+tun = { path = "G:/git/rust-tun", features = ["async-ohos"], optional = true }
 netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip.git", rev = "9463bdf", optional = true }
 
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
